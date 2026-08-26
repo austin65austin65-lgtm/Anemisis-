@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1.0,
+      maximum-scale=1.0,user-scalable=no">
+
+<title>AFTER THE BELL</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    touch-action:none;
+    -webkit-user-select:none;
+    user-select:none;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#101216;
+    font-family:Arial,sans-serif;
+}
+
+canvas{
+    display:block;
+}
+
+#loading{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    background:#101216;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+}
+
+#loading small{
+    margin-top:10px;
+    opacity:.65;
+}
+
+#gameUI{
+    display:none;
+}
+
+#title{
+    position:fixed;
+    top:14px;
+    left:14px;
+    z-index:20;
+
+    color:white;
+    background:rgba(0,0,0,.65);
+
+    padding:10px 14px;
+    border-radius:9px;
+
+    box-shadow:0 4px 15px rgba(0,0,0,.4);
+
+    font-size:14px;
+}
+
+#title small{
+    opacity:.65;
+}
+
+#objective{
+    position:fixed;
+    top:75px;
+    left:14px;
+    z-index:20;
+
+    color:white;
+    background:rgba(0,0,0,.5);
+
+    padding:8px 12px;
+    border-radius:7px;
+
+    font-size:13px;
+}
+
+#crosshair{
+    position:fixed;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+
+    z-index:20;
+
+    color:white;
+    font-size:22px;
+
+    pointer-events:none;
+
+    text-shadow:0 0 5px black;
+}
+
+#message{
+    position:fixed;
+    left:50%;
+    bottom:145px;
+
+    transform:translateX(-50%);
+
+    z-index:40;
+
+    background:rgba(0,0,0,.85);
+    color:white;
+
+    padding:12px 20px;
+
+    border-radius:8px;
+
+    display:none;
+
+    text-align:center;
+}
+
+#joystick{
+    position:fixed;
+
+    left:24px;
+    bottom:25px;
+
+    width:140px;
+    height:140px;
+
+    z-index:30;
+
+    border-radius:50%;
+
+    background:rgba(255,255,255,.08);
+
+    border:2px solid rgba(255,255,255,.35);
+}
+
+#stick{
+    position:absolute;
+
+    width:60px;
+    height:60px;
+
+    left:38px;
+    top:38px;
+
+    border-radius:50%;
+
+    background:rgba(255,255,255,.28);
+
+    border:2px solid rgba(255,255,255,.8);
+}
+
+#lookArea{
+    position:fixed;
+
+    right:0;
+    top:0;
+
+    width:62%;
+    height:100%;
+
+    z-index:10;
+}
+
+#interact{
+    position:fixed;
+
+    right:25px;
+    bottom:32px;
+
+    z-index:40;
+
+    width:90px;
+    height:90px;
+
+    border-radius:50%;
+
+    border:2px solid white;
+
+    background:rgba(255,255,255,.13);
+
+    color:white;
+
+    font-weight:bold;
+
+    display:none;
+}
+
+@media(min-width:800px){
+
+    #joystick{
+        display:none;
+    }
+
+    #lookArea{
+        width:100%;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div id="loading">
+    <b>AFTER THE BELL</b>
+    <small id="loadingText">Loading 3D world...</small>
+</div>
+
+<div id="gameUI">
+
+    <div id="title">
+        AFTER THE BELL<br>
+        <small>School 3D Prototype</small>
+    </div>
+
+    <div id="objective">
+        OBJECTIVE: Explore the school
+    </div>
+
+    <div id="crosshair">+</div>
+
+    <div id="message"></div>
+
+    <button id="interact">INTERACT</button>
+
+    <div id="joystick">
+        <div id="stick"></div>
+    </div>
+
+    <div id="lookArea"></div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+<script>
+
+window.addEventListener("load",()=>{
+
+/* =====================================================
+   CHECK ENGINE
+===================================================== */
+
+if(typeof THREE==="undefined"){
+
+    document.getElementById("loadingText").textContent=
+        "Three.js could not load. Check your internet.";
+
+    return;
+}
+
+
+/* =====================================================
+   SHOW GAME
+===================================================== */
+
+document.getElementById("loading").style.display="none";
+document.getElementById("gameUI").style.display="block";
+
+
+/* =====================================================
+   SCENE
+===================================================== */
+
+const scene=new THREE.Scene();
+
+scene.background=new THREE.Color(0x171b20);
+
+scene.fog=new THREE.Fog(
+    0x171b20,
+    8,
+    65
+);
+
+
+/* =====================================================
+   CAMERA
+===================================================== */
+
+const camera=new THREE.PerspectiveCamera(
+    70,
+    innerWidth/innerHeight,
+    .1,
+    100
+);
+
+camera.position.set(
+    0,
+    1.7,
+    10
+);
+
+
+/* =====================================================
+   RENDERER
+===================================================== */
+
+const renderer=new THREE.WebGLRenderer({
+    antialias:true
+});
+
+renderer.setSize(
+    innerWidth,
+    innerHeight
+);
+
+renderer.setPixelRatio(
+    Math.min(devicePixelRatio,2)
+);
+
+renderer.shadowMap.enabled=true;
+
+renderer.shadowMap.type=
+    THREE.PCFSoftShadowMap;
+
+document.body.appendChild(renderer.domElement);
+
+
+/* =====================================================
+   LIGHTING
+===================================================== */
+
+const ambient=new THREE.HemisphereLight(
+    0x9aa9b8,
+    0x202020,
+    .65
+);
+
+scene.add(ambient);
+
+
+const sun=new THREE.DirectionalLight(
+    0xffe9cf,
+    .8
+);
+
+sun.position.set(
+    8,
+    12,
+    10
+);
+
+sun.castShadow=true;
+
+sun.shadow.mapSize.width=1024;
+sun.shadow.mapSize.height=1024;
+
+scene.add(sun);
+
+
+/* =====================================================
+   MATERIALS
+===================================================== */
+
+function mat(color,roughness=1){
+
+    return new THREE.MeshStandardMaterial({
+        color,
+        roughness
+    });
+}
+
+const floorMat=mat(0x50545a,.8);
+
+const tileMat=mat(0x686b70,.75);
+
+const wallMat=mat(0x777b80,.9);
+
+const wallLowerMat=mat(0x50545a,.95);
+
+const ceilingMat=mat(0x292c31,1);
+
+const woodMat=mat(0x70462a,.75);
+
+const woodDark=mat(0x4d301e,.8);
+
+const metalMat=mat(0x30373c,.5);
+
+const lockerMat=mat(0x4f5960,.45);
+
+const glassMat=new THREE.MeshStandardMaterial({
+    color:0x718e99,
+    transparent:true,
+    opacity:.42,
+    roughness:.2
+});
+
+const blackboardMat=mat(0x142820,.95);
+
+const grassMat=mat(0x345d38,1);
+
+const concreteMat=mat(0x66676a,1);
+
+const whiteMat=mat(0xd7d5ce,.8);
+
+const yellowMat=mat(0xd5b65e,.6);
+
+
+/* =====================================================
+   BOX
+===================================================== */
+
+function box(
+    w,h,d,
+    x,y,z,
+    material
+){
+
+    const mesh=new THREE.Mesh(
+        new THREE.BoxGeometry(w,h,d),
+        material
+    );
+
+    mesh.position.set(x,y,z);
+
+    mesh.castShadow=true;
+    mesh.receiveShadow=true;
+
+    scene.add(mesh);
+
+    return mesh;
+}
+
+
+/* =====================================================
+   CYLINDER
+===================================================== */
+
+function cylinder(
+    radius,
+    height,
+    x,y,z,
+    material
+){
+
+    const mesh=new THREE.Mesh(
+        new THREE.CylinderGeometry(
+            radius,
+            radius,
+            height,
+            12
+        ),
+        material
+    );
+
+    mesh.position.set(x,y,z);
+
+    mesh.castShadow=true;
+    mesh.receiveShadow=true;
+
+    scene.add(mesh);
+
+    return mesh;
+}
+
+
+/* =====================================================
+   MAIN FLOOR
+===================================================== */
+
+box(
+    50,.2,60,
+    0,-.1,-8,
+    floorMat
+);
+
+
+/* =====================================================
+   CEILING
+===================================================== */
+
+box(
+    50,.2,60,
+    0,4,-8,
+    ceilingMat
+);
+
+
+/* =====================================================
+   HALLWAY WALLS
+===================================================== */
+
+/*
+   Hallway:
+
+   LEFT SIDE
+   ----------------
+          HALL
+   ----------------
+   RIGHT SIDE
+*/
+
+
+box(
+    .35,4,45,
+    -8,2,-8,
+    wallMat
+);
+
+box(
+    .35,4,45,
+    8,2,-8,
+    wallMat
+);
+
+
+/* =====================================================
+   LOWER WALL PANELS
+===================================================== */
+
+box(
+    .08,1.15,44,
+    -7.78,.58,-8,
+    wallLowerMat
+);
+
+box(
+    .08,1.15,44,
+    7.78,.58,-8,
+    wallLowerMat
+);
+
+
+/* =====================================================
+   FLOOR TILE LINES
+===================================================== */
+
+for(let z=-30;z<=15;z+=2){
+
+    box(
+        15,.015,.025,
+        0,.012,z,
+        metalMat
+    );
+}
+
+for(let x=-6;x<=6;x+=2){
+
+    box(
+        .025,.015,45,
+        x,.013,-8,
+        metalMat
+    );
+}
+
+
+/* =====================================================
+   CEILING PANELS
+===================================================== */
+
+for(let z=-28;z<=12;z+=4){
+
+    box(
+        15,.03,.03,
+        0,3.9,z,
+        metalMat
+    );
+}
+
+
+/* =====================================================
+   CEILING LIGHTS
+===================================================== */
+
+function ceilingLight(x,z){
+
+    const lightBox=box(
+        3,.08,.45,
+        x,3.82,z,
+        whiteMat
+    );
+
+    const light=new THREE.PointLight(
+        0xfff3d6,
+        .65,
+        10
+    );
+
+    light.position.set(
+        x,3.5,z
+    );
+
+    scene.add(light);
+}
+
+ceilingLight(-4,-4);
+ceilingLight(4,-4);
+
+ceilingLight(-4,-12);
+ceilingLight(4,-12);
+
+ceilingLight(-4,-20);
+ceilingLight(4,-20);
+
+ceilingLight(-4,-28);
+ceilingLight(4,-28);
+
+
+/* =====================================================
+   WINDOWS
+===================================================== */
+
+function windowUnit(
+    x,z,
+    side
+){
+
+    let wx=x;
+
+    let wz=z;
+
+    box(
+        3,
+        2,
+        .12,
+        wx,
+        2.35,
+        wz,
+        glassMat
+    );
+
+    if(side==="left"){
+
+        box(
+            .12,
+            2.2,
+            .12,
+            wx-1.45,
+            2.35,
+            wz,
+            metalMat
+        );
+
+        box(
+            .12,
+            2.2,
+            .12,
+            wx+1.45,
+            2.35,
+            wz,
+            metalMat
+        );
+
+    }
+
+}
+
+
+/* left/right wall windows */
+
+windowUnit(
+    -7.75,
+    -2,
+    "left"
+);
+
+windowUnit(
+    7.75,
+    -2,
+    "right"
+);
+
+windowUnit(
+    -7.75,
+    6,
+    "left"
+);
+
+windowUnit(
+    7.75,
+    6,
+    "right"
+);
+
+
+/* =====================================================
+   CLASSROOM 204
+   OPENING IN BACK WALL
+===================================================== */
+
+/*
+       HALLWAY
+
+     |          |
+     |  DOOR    |
+     |          |
+
+      CLASSROOM
+*/
+
+
+/* wall pieces around door */
+
+box(
+    5.8,4,.35,
+    -5.1,2,-15,
+    wallMat
+);
+
+box(
+    5.8,4,.35,
+    5.1,2,-15,
+    wallMat
+);
+
+
+/* classroom side walls */
+
+box(
+    .35,4,12,
+    -7,2,-21,
+    wallMat
+);
+
+box(
+    .35,4,12,
+    7,2,-21,
+    wallMat
+);
+
+
+/* back wall */
+
+box(
+    14,4,.35,
+    0,2,-27,
+    wallMat
+);
+
+
+/* =====================================================
+   CLASSROOM FLOOR
+===================================================== */
+
+box(
+    13,.05,11,
+    0,.03,-21,
+    tileMat
+);
+
+
+/* =====================================================
+   ROOM 204 DOOR
+===================================================== */
+
+const door=box(
+    3,3.2,.22,
+    0,1.6,-14.8,
+    woodMat
+);
+
+door.userData.open=false;
+
+
+/* frame */
+
+box(
+    .22,3.55,.35,
+    -1.65,1.78,-14.8,
+    metalMat
+);
+
+box(
+    .22,3.55,.35,
+    1.65,1.78,-14.8,
+    metalMat
+);
+
+box(
+    3.5,.22,.35,
+    0,3.55,-14.8,
+    metalMat
+);
+
+
+/* room number plate */
+
+box(
+    1.8,.5,.08,
+    0,3.05,-14.65,
+    yellowMat
+);
+
+
+/* =====================================================
+   CLASSROOM WINDOWS
+===================================================== */
+
+for(let x=-5;x<=5;x+=5){
+
+    box(
+        3,
+        2,
+        .1,
+        x,
+        2.35,
+        -26.78,
+        glassMat
+    );
+
+    box(
+        .12,
+        2.2,
+        .12,
+        x-1.45,
+        2.35,
+        -26.7,
+        metalMat
+    );
+
+    box(
+        .12,
+        2.2,
+        .12,
+        x+1.45,
+        2.35,
+        -26.7,
+        metalMat
+    );
+}
+
+
+/* =====================================================
+   BLACKBOARD
+===================================================== */
+
+box(
+    6,
+    2,
+    .12,
+    0,
+    2.45,
+    -26.72,
+    blackboardMat
+);
+
+
+/* chalk tray */
+
+box(
+    6.2,
+    .12,
+    .25,
+    0,
+    1.4,
+    -26.58,
+    woodDark
+);
+
+
+/* =====================================================
+   CLASSROOM DESKS
+===================================================== */
+
+function desk(x,z){
+
+    box(
+        1.5,.15,.75,
+        x,1,z,
+        woodMat
+    );
+
+    box(
+        .1,1,.1,
+        x-.55,.5,z-.25,
+        metalMat
+    );
+
+    box(
+        .1,1,.1,
+        x+.55,.5,z-.25,
+        metalMat
+    );
+
+    /* chair */
+
+    box(
+        .8,.12,.65,
+        x,0.72,z+.75,
+        woodDark
+    );
+
+    box(
+        .08,.7,.08,
+        x-.3,.36,z+.75,
+        metalMat
+    );
+
+    box(
+        .08,.7,.08,
+        x+.3,.36,z+.75,
+        metalMat
+    );
+}
+
+desk(-3,-19);
+desk(0,-19);
+desk(3,-19);
+
+desk(-3,-22);
+desk(0,-22);
+desk(3,-22);
+
+desk(-3,-25);
+desk(0,-25);
+desk(3,-25);
+
+
+/* =====================================================
+   TEACHER DESK
+===================================================== */
+
+box(
+    2,.2,1,
+    0,1.05,-17,
+    woodDark
+);
+
+box(
+    .12,1,.12,
+    -.75,.52,-17,
+    metalMat
+);
+
+box(
+    .12,1,.12,
+    .75,.52,-17,
+    metalMat
+);
+
+
+/* =====================================================
+   LOCKERS
+===================================================== */
+
+function locker(x,z){
+
+    box(
+        .9,
+        2.6,
+        .65,
+        x,
+        1.3,
+        z,
+        lockerMat
+    );
+
+    box(
+        .035,
+        2.2,
+        .03,
+        x,
+        1.3,
+        z-.34,
+        metalMat
+    );
+}
+
+for(let i=0;i<5;i++){
+
+    locker(
+        -6.9,
+        -7+i*1.15
+    );
+}
+
+for(let i=0;i<5;i++){
+
+    locker(
+        6.9,
+        -7+i*1.15
+    );
+}
+
+
+/* =====================================================
+   FACULTY ROOM
+   FACING ROOM 204
+===================================================== */
+
+/*
+   FACULTY DOOR IS ON LEFT SIDE
+   AND ROOM 204 DOOR IS ON RIGHT SIDE
+*/
+
+
+/* faculty room walls */
+
+box(
+    7,
+    4,
+    .35,
+    -11.5,
+    2,
+    -5,
+    wallMat
+);
+
+box(
+    .35,
+    4,
+    8,
+    -15,
+    2,
+    -9,
+    wallMat
+);
+
+box(
+    .35,
+    4,
+    8,
+    -8,
+    2,
+    -9,
+    wallMat
+);
+
+box(
+    7,
+    4,
+    .35,
+    -11.5,
+    2,
+    -13,
+    wallMat
+);
+
+
+/* faculty door */
+
+const facultyDoor=box(
+    2.5,
+    3.2,
+    .22,
+    -11.5,
+    1.6,
+    -4.8,
+    woodMat
+);
+
+facultyDoor.userData.open=false;
+
+
+/* faculty sign */
+
+box(
+    2.2,
+    .5,
+    .08,
+    -11.5,
+    3.05,
+    -4.65,
+    yellowMat
+);
+
+
+/* =====================================================
+   FACULTY DESKS
+===================================================== */
+
+function facultyDesk(x,z){
+
+    box(
+        1.6,.18,.8,
+        x,1,z,
+        woodMat
+    );
+
+    box(
+        .1,1,.1,
+        x-.65,.5,z,
+        metalMat
+    );
+
+    box(
+        .1,1,.1,
+        x+.65,.5,z,
+        metalMat
+    );
+}
+
+facultyDesk(-13,-7);
+facultyDesk(-10,-7);
+
+facultyDesk(-13,-10);
+facultyDesk(-10,-10);
+
+
+/* =====================================================
+   COURTYARD
+===================================================== */
+
+box(
+    14,.12,12,
+    15,.05,8,
+    grassMat
+);
+
+
+/* courtyard concrete path */
+
+box(
+    3,.14,12,
+    15,.1,8,
+    concreteMat
+);
+
+
+/* =====================================================
+   COURTYARD WALLS
+===================================================== */
+
+box(
+    14,2,.3,
+    15,1,2,
+    wallMat
+);
+
+box(
+    14,2,.3,
+    15,1,14,
+    wallMat
+);
+
+box(
+    .3,2,12,
+    8,1,8,
+    wallMat
+);
+
+box(
+    .3,2,12,
+    22,1,8,
+    wallMat
+);
+
+
+/* =====================================================
+   COURTYARD BENCH
+===================================================== */
+
+function bench(x,z){
+
+    box(
+        2,.16,.55,
+        x,.9,z,
+        woodMat
+    );
+
+    box(
+        .12,.9,.12,
+        x-.7,.45,z,
+        metalMat
+    );
+
+    box(
+        .12,.9,.12,
+        x+.7,.45,z,
+        metalMat
+    );
+}
+
+bench(11,7);
+bench(19,10);
+
+
+/* =====================================================
+   TREES
+===================================================== */
+
+function tree(x,z){
+
+    cylinder(
+        .25,
+        2,
+        x,1,z,
+        woodDark
+    );
+
+    const crown=new THREE.Mesh(
+        new THREE.SphereGeometry(
+            1.45,
+            12,
+            10
+        ),
+        mat(0x28552f,1)
+    );
+
+    crown.position.set(
+        x,
+        2.7,
+        z
+    );
+
+    crown.castShadow=true;
+
+    scene.add(crown);
+}
+
+tree(10,4);
+tree(20,5);
+tree(10,12);
+tree(20,12);
+
+
+/* =====================================================
+   PLANTS
+===================================================== */
+
+function plant(x,z){
+
+    cylinder(
+        .08,
+        .6,
+        x,.3,z,
+        grassMat
+    );
+
+    for(let i=0;i<5;i++){
+
+        const leaf=new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .08,.5,.08
+            ),
+            grassMat
+        );
+
+        leaf.position.set(
+            x+
+            Math.sin(i)*.18,
+            .55,
+            z+
+            Math.cos(i)*.18
+        );
+
+        leaf.rotation.z=
+            (i-2)*.25;
+
+        scene.add(leaf);
+    }
+}
+
+plant(9,6);
+plant(21,8);
+plant(9,11);
+plant(21,11);
+
+
+/* =====================================================
+   PLAYER
+===================================================== */
+
+const player={
+    height:1.7,
+    speed:4
+};
+
+
+/* =====================================================
+   KEYBOARD
+===================================================== */
+
+const keys={};
+
+window.addEventListener(
+    "keydown",
+    e=>{
+
+        keys[e.key.toLowerCase()]=true;
+
+        if(e.key.toLowerCase()==="e"){
+            interact();
+        }
+    }
+);
+
+window.addEventListener(
+    "keyup",
+    e=>{
+        keys[e.key.toLowerCase()]=false;
+    }
+);
+
+
+/* =====================================================
+   CAMERA LOOK
+   LEFT / RIGHT INVERTED
+===================================================== */
+
+let yaw=0;
+let pitch=0;
+
+let mouseDown=false;
+
+window.addEventListener(
+    "mousedown",
+    ()=>{
+        mouseDown=true;
+    }
+);
+
+window.addEventListener(
+    "mouseup",
+    ()=>{
+        mouseDown=false;
+    }
+);
+
+window.addEventListener(
+    "mousemove",
+    e=>{
+
+        if(!mouseDown)return;
+
+        yaw-=e.movementX*.002;
+
+        pitch-=e.movementY*.002;
+
+        pitch=Math.max(
+            -1.35,
+            Math.min(
+                1.35,
+                pitch
+            )
+        );
+    }
+);
+
+
+/* =====================================================
+   MOBILE LOOK
+===================================================== */
+
+const lookArea=
+    document.getElementById(
+        "lookArea"
+    );
+
+let looking=false;
+
+let lastX=0;
+let lastY=0;
+
+lookArea.addEventListener(
+    "touchstart",
+    e=>{
+
+        const t=e.touches[0];
+
+        looking=true;
+
+        lastX=t.clientX;
+        lastY=t.clientY;
+
+    },
+    {passive:false}
+);
+
+lookArea.addEventListener(
+    "touchmove",
+    e=>{
+
+        if(!looking)return;
+
+        const t=e.touches[0];
+
+        const dx=
+            t.clientX-lastX;
+
+        const dy=
+            t.clientY-lastY;
+
+        yaw-=dx*.005;
+
+        pitch-=dy*.005;
+
+        pitch=Math.max(
+            -1.35,
+            Math.min(
+                1.35,
+                pitch
+            )
+        );
+
+        lastX=t.clientX;
+        lastY=t.clientY;
+
+        e.preventDefault();
+
+    },
+    {passive:false}
+);
+
+lookArea.addEventListener(
+    "touchend",
+    ()=>{
+        looking=false;
+    }
+);
+
+
+/* =====================================================
+   JOYSTICK
+===================================================== */
+
+const joystick=
+    document.getElementById(
+        "joystick"
+    );
+
+const stick=
+    document.getElementById(
+        "stick"
+    );
+
+let joyX=0;
+let joyY=0;
+let joystickActive=false;
+
+
+function updateJoystick(x,y){
+
+    const rect=
+        joystick.getBoundingClientRect();
+
+    const cx=
+        rect.left+
+        rect.width/2;
+
+    const cy=
+        rect.top+
+        rect.height/2;
+
+    let dx=x-cx;
+    let dy=y-cy;
+
+    const max=45;
+
+    const distance=
+        Math.hypot(dx,dy);
+
+    if(distance>max){
+
+        dx=
+            dx/distance*max;
+
+        dy=
+            dy/distance*max;
+    }
+
+    joyX=dx/max;
+    joyY=dy/max;
+
+    stick.style.transform=
+        `translate(${dx}px,${dy}px)`;
+}
+
+
+joystick.addEventListener(
+    "touchstart",
+    e=>{
+
+        joystickActive=true;
+
+        const t=e.touches[0];
+
+        updateJoystick(
+            t.clientX,
+            t.clientY
+        );
+
+        e.preventDefault();
+
+    },
+    {passive:false}
+);
+
+
+joystick.addEventListener(
+    "touchmove",
+    e=>{
+
+        if(!joystickActive)return;
+
+        const t=e.touches[0];
+
+        updateJoystick(
+            t.clientX,
+            t.clientY
+        );
+
+        e.preventDefault();
+
+    },
+    {passive:false}
+);
+
+
+joystick.addEventListener(
+    "touchend",
+    ()=>{
+
+        joystickActive=false;
+
+        joyX=0;
+        joyY=0;
+
+        stick.style.transform=
+            "translate(0,0)";
+    }
+);
+
+
+/* =====================================================
+   DOORS
+===================================================== */
+
+const interactButton=
+    document.getElementById(
+        "interact"
+    );
+
+const message=
+    document.getElementById(
+        "message"
+    );
+
+
+function distanceTo(obj){
+
+    return camera.position.distanceTo(
+        obj.position
+    );
+}
+
+
+function nearestDoor(){
+
+    const doors=[
+        door,
+        facultyDoor
+    ];
+
+    let closest=null;
+    let distance=Infinity;
+
+    doors.forEach(d=>{
+
+        const dis=
+            distanceTo(d);
+
+        if(dis<distance){
+
+            distance=dis;
+            closest=d;
+        }
+    });
+
+    return distance<4
+        ? closest
+        : null;
+}
+
+
+function showMessage(text){
+
+    message.textContent=text;
+
+    message.style.display="block";
+
+    setTimeout(
+        ()=>{
+            message.style.display="none";
+        },
+        1300
+    );
+}
+
+
+function interact(){
+
+    const d=nearestDoor();
+
+    if(!d)return;
+
+    if(!d.userData.open){
+
+        d.userData.open=true;
+
+        d.rotation.y=Math.PI/2;
+
+        showMessage(
+            "DOOR OPENED"
+        );
+
+    }else{
+
+        d.userData.open=false;
+
+        d.rotation.y=0;
+
+        showMessage(
+            "DOOR CLOSED"
+        );
+    }
+}
+
+
+interactButton.addEventListener(
+    "click",
+    interact
+);
+
+
+/* =====================================================
+   MOVEMENT
+===================================================== */
+
+const clock=new THREE.Clock();
+
+
+function movement(){
+
+    const delta=clock.getDelta();
+
+    let forward=0;
+    let side=0;
+
+
+    /* keyboard */
+
+    if(
+        keys["w"] ||
+        keys["arrowup"]
+    )
+        forward+=1;
+
+    if(
+        keys["s"] ||
+        keys["arrowdown"]
+    )
+        forward-=1;
+
+    if(
+        keys["a"] ||
+        keys["arrowleft"]
+    )
+        side-=1;
+
+    if(
+        keys["d"] ||
+        keys["arrowright"]
+    )
+        side+=1;
+
+
+    /* joystick */
+
+    forward-=joyY;
+
+    /*
+       LEFT / RIGHT INVERTED
+    */
+
+    side-=joyX;
+
+
+    const len=
+        Math.hypot(
+            forward,
+            side
+        );
+
+    if(len>1){
+
+        forward/=len;
+        side/=len;
+    }
+
+
+    /* direction */
+
+    const direction=
+        new THREE.Vector3();
+
+    camera.getWorldDirection(
+        direction
+    );
+
+    direction.y=0;
+
+    direction.normalize();
+
+
+    const right=
+        new THREE.Vector3(
+            direction.z,
+            0,
+            -direction.x
+        );
+
+
+    /* movement */
+
+    camera.position.addScaledVector(
+        direction,
+        forward*
+        player.speed*
+        delta
+    );
+
+    camera.position.addScaledVector(
+        right,
+        side*
+        player.speed*
+        delta
+    );
+
+
+    /* basic world boundaries */
+
+    camera.position.x=
+        Math.max(
+            -7.2,
+            Math.min(
+                21,
+                camera.position.x
+            )
+        );
+
+    camera.position.z=
+        Math.max(
+            -29,
+            Math.min(
+                14,
+                camera.position.z
+            )
+        );
+
+    camera.position.y=
+        player.height;
+
+
+    camera.rotation.order=
+        "YXZ";
+
+    camera.rotation.y=yaw;
+    camera.rotation.x=pitch;
+}
+
+
+/* =====================================================
+   UI
+===================================================== */
+
+function updateUI(){
+
+    const d=nearestDoor();
+
+    interactButton.style.display=
+        d ? "block" : "none";
+
+    if(d===door){
+
+        document.getElementById(
+            "objective"
+        ).textContent=
+            "OBJECTIVE: Classroom 204";
+
+    }else if(d===facultyDoor){
+
+        document.getElementById(
+            "objective"
+        ).textContent=
+            "OBJECTIVE: Faculty Room";
+
+    }else{
+
+        document.getElementById(
+            "objective"
+        ).textContent=
+            "OBJECTIVE: Explore the school";
+    }
+}
+
+
+/* =====================================================
+   RESIZE
+===================================================== */
+
+window.addEventListener(
+    "resize",
+    ()=>{
+
+        camera.aspect=
+            innerWidth/innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            innerWidth,
+            innerHeight
+        );
+    }
+);
+
+
+/* =====================================================
+   GAME LOOP
+===================================================== */
+
+function animate(){
+
+    requestAnimationFrame(
+        animate
+    );
+
+    movement();
+
+    updateUI();
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+animate();
+
+});
+</script>
+
+</body>
+          </html>
